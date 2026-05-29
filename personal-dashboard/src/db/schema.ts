@@ -18,6 +18,7 @@ export const todos = pgTable('todos', {
   done: boolean('done').default(false).notNull(),
   priority: text('priority').notNull(), // 'low' | 'med' | 'high'
   dueAt: timestamp('due_at'),
+  completedAt: timestamp('completed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

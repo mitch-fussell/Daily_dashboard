@@ -41,9 +41,9 @@
 
 ## Phase 3: Wire Up the Database (Supabase)
 
-- [ ] **Step 11 — Todos CRUD** (create, check off, delete — persisted to Supabase `todos` table)
-- [ ] **Step 12 — Habits CRUD** (daily log persisted to Supabase `habits` table)
-- [ ] **Step 13 — Notes autosave** (debounced save to Supabase `notes` table, 3 slots)
+- [x] **Step 11 — Todos CRUD** (create, check off, delete — persisted to Supabase `todos` table)
+- [x] **Step 12 — Habits CRUD** (daily log persisted to Supabase `habits` table)
+- [x] **Step 13 — Notes autosave** (debounced 1.5s save to Supabase `notes` table, 3 tabs: Quick Notes / Ideas / Scratch)
 
 ---
 
