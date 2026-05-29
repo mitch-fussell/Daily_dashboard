@@ -3,11 +3,35 @@ import GitHub from 'next-auth/providers/github';
 import { db } from '@/db';
 import { users } from '@/db/schema';
 
+const useSecureCookies = process.env.AUTH_URL?.startsWith('https://');
+
 export const { handlers, auth, signIn, signOut } = NextAuth({
+  trustHost: true,
+  cookies: {
+    pkceCodeVerifier: {
+      name: 'authjs.pkce.code_verifier',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: useSecureCookies ?? false,
+      },
+    },
+    state: {
+      name: 'authjs.state',
+      options: {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        secure: useSecureCookies ?? false,
+      },
+    },
+  },
   providers: [
     GitHub({
       clientId: process.env.AUTH_GITHUB_ID!,
       clientSecret: process.env.AUTH_GITHUB_SECRET!,
+      checks: ['state'],
     }),
   ],
   session: { strategy: 'jwt' },
