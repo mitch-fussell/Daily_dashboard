@@ -5,10 +5,15 @@ export type WorkoutType = 'Run' | 'Bike' | 'Swim' | 'Strength' | 'Rest' | 'Other
 export type Workout = {
   title: string;
   type: WorkoutType;
-  durationSecs: number;
+  durationSecs: number;        // actual completed duration
+  plannedDurationSecs: number; // planned duration (0 if not found)
+  tss: number | null;          // actual TSS
+  plannedTss: number | null;
+  distanceStr: string | null;  // e.g. "40.2 km"
+  plannedDistanceStr: string | null;
   description: string;
   isRest: boolean;
-  isRace: boolean;  // A/B/C priority race events — shown separately, not as workouts
+  isRace: boolean;
 };
 
 export type UpcomingWorkout = {
@@ -60,6 +65,24 @@ function parseActualTime(rawDescription: string): number {
   return parseInt(match[1]) * 3600 + parseInt(match[2]) * 60;
 }
 
+function parsePlannedDuration(raw: string): number {
+  const match = raw.match(/Planned (?:Duration|Time):\s*(\d+):(\d+)(?::\d+)?/i);
+  if (!match) return 0;
+  return parseInt(match[1]) * 3600 + parseInt(match[2]) * 60;
+}
+
+function parseNumberField(raw: string, label: string): number | null {
+  const re = new RegExp(label + '[^\\d]+(\\d+(?:\\.\\d+)?)', 'i');
+  const match = raw.match(re);
+  return match ? parseFloat(match[1]) : null;
+}
+
+function parseDistanceField(raw: string, label: string): string | null {
+  const re = new RegExp(label + '[^\\d]+([\\d.]+\\s*(?:km|mi|m)?)', 'i');
+  const match = raw.match(re);
+  return match ? match[1].trim() : null;
+}
+
 function parseDuration(event: InstanceType<typeof ICAL.Event>): number {
   try {
     const dur = event.duration;
@@ -104,13 +127,16 @@ function parseWorkout(vevent: InstanceType<typeof ICAL.Component>): Workout {
   const type = detectType(title);
   const rawDescription = event.description ?? '';
   const description = cleanDescription(rawDescription);
-  // Parse actual time from raw (un-truncated) description — the field often
-  // appears near the end of long TrainingPeaks descriptions.
   const actualSecs = parseActualTime(rawDescription);
   const durationSecs = actualSecs > 0 ? actualSecs : parseDuration(event);
+  const plannedDurationSecs = parsePlannedDuration(rawDescription);
+  const tss = parseNumberField(rawDescription, 'Actual TSS');
+  const plannedTss = parseNumberField(rawDescription, 'Planned TSS');
+  const distanceStr = parseDistanceField(rawDescription, 'Actual Distance');
+  const plannedDistanceStr = parseDistanceField(rawDescription, 'Planned Distance');
   const isRest = type === 'Rest' || /rest|off/i.test(title);
   const isRace = getRacePriority(title) !== null;
-  return { title, type, durationSecs, description, isRest, isRace };
+  return { title, type, durationSecs, plannedDurationSecs, tss, plannedTss, distanceStr, plannedDistanceStr, description, isRest, isRace };
 }
 
 export type TrainingResult =

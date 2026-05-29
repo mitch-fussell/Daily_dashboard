@@ -64,7 +64,7 @@ export default async function DashboardPage() {
         {/* Dashboard grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
-          {/* Column 1: Calendar + Training (placeholders) */}
+          {/* Column 1: Calendar */}
           <div className="space-y-4">
             <Widget title="Today" badge="coming soon">
               <CalendarWidget />
@@ -72,7 +72,28 @@ export default async function DashboardPage() {
                 Placeholder — Microsoft Calendar connects in Step 14
               </p>
             </Widget>
+          </div>
 
+          {/* Column 2: Todos + Habits + Notes */}
+          <div className="space-y-4">
+            <Widget title="To-Do">
+              <TodosWidget todos={userTodos} />
+            </Widget>
+
+            <Widget title="Habits">
+              <HabitsWidget habits={userHabits.map(h => ({
+                ...h,
+                log: (h.log ?? {}) as Record<string, boolean>,
+              }))} />
+            </Widget>
+
+            <Widget title="Notes">
+              <NotesWidget notes={userNotes.map(n => ({ slot: n.slot, content: n.content }))} />
+            </Widget>
+          </div>
+
+          {/* Column 3: Training Plan */}
+          <div>
             <Widget title="Training Plan" badge={icsUrl ? undefined : 'not connected'}>
               <TrainingWidget
                 icsUrl={icsUrl}
@@ -83,27 +104,6 @@ export default async function DashboardPage() {
                 races={trainingResult?.ok ? trainingResult.races : []}
                 fetchError={trainingFetchError}
               />
-            </Widget>
-          </div>
-
-          {/* Column 2: Todos */}
-          <div>
-            <Widget title="To-Do">
-              <TodosWidget todos={userTodos} />
-            </Widget>
-          </div>
-
-          {/* Column 3: Habits + Notes */}
-          <div className="space-y-4">
-            <Widget title="Habits">
-              <HabitsWidget habits={userHabits.map(h => ({
-                ...h,
-                log: (h.log ?? {}) as Record<string, boolean>,
-              }))} />
-            </Widget>
-
-            <Widget title="Notes">
-              <NotesWidget notes={userNotes.map(n => ({ slot: n.slot, content: n.content }))} />
             </Widget>
           </div>
         </div>

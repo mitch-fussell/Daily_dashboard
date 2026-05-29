@@ -17,6 +17,16 @@ type Props = {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
+function StatPill({ label, value, planned }: { label: string; value: string; planned?: string }) {
+  return (
+    <div className="flex flex-col bg-zinc-800 rounded-md px-2 py-1 min-w-0">
+      <span className="text-zinc-500 text-[10px] uppercase tracking-wide leading-none mb-0.5">{label}</span>
+      <span className="text-zinc-200 text-xs font-medium leading-tight">{value}</span>
+      {planned && <span className="text-zinc-600 text-[10px] leading-tight">plan {planned}</span>}
+    </div>
+  );
+}
+
 function WorkoutItem({ workout }: { workout: Workout }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -24,26 +34,54 @@ function WorkoutItem({ workout }: { workout: Workout }) {
     return <p className="text-sm font-medium text-zinc-400">😴 Rest day</p>;
   }
 
-  const duration = formatDuration(workout.durationSecs);
+  const actual = formatDuration(workout.durationSecs);
+  const planned = formatDuration(workout.plannedDurationSecs);
+  const durationDiffers = workout.plannedDurationSecs > 0 && workout.plannedDurationSecs !== workout.durationSecs;
+
+  const stats: React.ReactNode[] = [];
+  if (actual !== '—') {
+    stats.push(
+      <StatPill key="dur" label="Time" value={actual} planned={durationDiffers ? planned : undefined} />
+    );
+  }
+  if (workout.tss !== null) {
+    stats.push(
+      <StatPill key="tss" label="TSS" value={String(Math.round(workout.tss))}
+        planned={workout.plannedTss !== null ? String(Math.round(workout.plannedTss)) : undefined} />
+    );
+  }
+  if (workout.distanceStr) {
+    stats.push(
+      <StatPill key="dist" label="Distance" value={workout.distanceStr}
+        planned={workout.plannedDistanceStr ?? undefined} />
+    );
+  }
+
   return (
     <div>
       <div className="flex items-baseline gap-2">
         <span>{WORKOUT_ICON[workout.type]}</span>
         <span className="font-semibold text-zinc-100 text-sm leading-snug">{workout.title}</span>
       </div>
-      {duration !== '—' && <p className="text-xs text-zinc-400 mt-0.5 ml-6">{duration}</p>}
+
+      {stats.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-2 ml-6">
+          {stats}
+        </div>
+      )}
+
       {workout.description && (
-        <>
-          <p className={`text-xs text-zinc-500 mt-1.5 ml-6 leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-2'}`}>
+        <div className="mt-2 ml-6">
+          <p className={`text-xs text-zinc-500 leading-relaxed whitespace-pre-line ${expanded ? '' : 'line-clamp-3'}`}>
             {workout.description}
           </p>
           {workout.description.length > 120 && (
             <button type="button" onClick={() => setExpanded(!expanded)}
-              className="text-xs text-zinc-600 hover:text-zinc-400 mt-0.5 ml-6 transition-colors">
+              className="text-xs text-zinc-600 hover:text-zinc-400 mt-0.5 transition-colors">
               {expanded ? 'Show less' : 'Show more'}
             </button>
           )}
-        </>
+        </div>
       )}
     </div>
   );
