@@ -2,6 +2,7 @@ import NextAuth from 'next-auth';
 import GitHub from 'next-auth/providers/github';
 import { db } from '@/db';
 import { users } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 
 const useSecureCookies = process.env.AUTH_URL?.startsWith('https://');
 
@@ -55,7 +56,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user }) {
-      if (user) token.id = user.id;
+      if (user?.email) {
+        // Use the DB's actual user id — the OAuth provider id (numeric GitHub id)
+        // may differ from the uuid already in the database.
+        const [dbUser] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(eq(users.email, user.email));
+        token.id = dbUser?.id ?? user.id;
+      }
       return token;
     },
     async session({ session, token }) {

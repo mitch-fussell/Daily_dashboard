@@ -30,10 +30,20 @@ export function NotesWidget({ notes }: { notes: NoteSlot[] }) {
   }
 
   useEffect(() => {
+    function flushOnUnload() {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        // Fire-and-forget — browser may cancel inflight requests on unload,
+        // but sendBeacon-backed server actions will complete in most browsers.
+        saveNote(activeSlot, contents[activeSlot]);
+      }
+    }
+    window.addEventListener('beforeunload', flushOnUnload);
     return () => {
+      window.removeEventListener('beforeunload', flushOnUnload);
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, []);
+  }, [activeSlot, contents]);
 
   return (
     <div className="flex flex-col gap-2">
