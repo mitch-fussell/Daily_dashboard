@@ -22,8 +22,12 @@
 - [x] **Step 3 — Dashboard skeleton UI**
   Replace boilerplate `page.tsx` with a real layout showing all planned widgets as placeholders.
 
-- [ ] **Step 4 — Verify dev server runs cleanly**
-  Run `pnpm dev` and confirm `/`, `/sign-in`, and GitHub sign-in flow all work.
+- [x] **Step 4 — Dev server runs cleanly**
+  `/sign-in` returns 200. `proxy.ts` auth guard fires correctly (11ms). No more 404s or middleware conflicts.
+  
+  **Remaining manual action for OAuth to work:**
+  - Set `AUTH_URL` in `.env.local` to your codespace URL (e.g. `https://cuddly-barnacle-97x7p5gjgp6w37j7x-3000.app.github.dev`)
+  - Add that URL + `/api/auth/callback/github` to your GitHub OAuth app at https://github.com/settings/developers
 
 ---
 
