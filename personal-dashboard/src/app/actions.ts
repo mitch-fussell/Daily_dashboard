@@ -5,6 +5,7 @@ import { db } from '@/db';
 import { todos, habits, notes, users } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
 
 async function getUserId() {
   const session = await auth();
@@ -126,6 +127,7 @@ export async function saveCalendarUrls(formData: FormData) {
     })
     .where(eq(users.id, userId));
   revalidatePath('/');
+  redirect('/');
 }
 
 // ── TrainingPeaks ─────────────────────────────────────────────────────────────
