@@ -76,8 +76,8 @@ export default async function DashboardPage() {
             <Widget title="Training Plan" badge={icsUrl ? undefined : 'not connected'}>
               <TrainingWidget
                 icsUrl={icsUrl}
-                today={trainingResult?.ok ? trainingResult.today : null}
-                tomorrow={trainingResult?.ok ? trainingResult.tomorrow : null}
+                today={trainingResult?.ok ? trainingResult.today : []}
+                tomorrow={trainingResult?.ok ? trainingResult.tomorrow : []}
                 next={trainingResult?.ok ? trainingResult.next : null}
                 weekStats={trainingResult?.ok ? trainingResult.weekStats : null}
                 races={trainingResult?.ok ? trainingResult.races : []}

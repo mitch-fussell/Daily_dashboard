@@ -7,8 +7,8 @@ import { type Workout, type UpcomingWorkout, type UpcomingRace, type WeekStats, 
 
 type Props = {
   icsUrl: string | null;
-  today: Workout | null;
-  tomorrow: Workout | null;
+  today: Workout[];
+  tomorrow: Workout[];
   next: UpcomingWorkout | null;
   weekStats: WeekStats | null;
   races: UpcomingRace[];
@@ -17,30 +17,16 @@ type Props = {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function WorkoutBlock({ label, workout }: { label: string; workout: Workout | null }) {
+function WorkoutItem({ workout }: { workout: Workout }) {
   const [expanded, setExpanded] = useState(false);
 
-  if (!workout) {
-    return (
-      <div>
-        <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">{label}</p>
-        <p className="text-sm text-zinc-600 italic">No workout scheduled</p>
-      </div>
-    );
-  }
   if (workout.isRest) {
-    return (
-      <div>
-        <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">{label}</p>
-        <p className="text-sm font-medium text-zinc-400">😴 Rest day</p>
-      </div>
-    );
+    return <p className="text-sm font-medium text-zinc-400">😴 Rest day</p>;
   }
 
   const duration = formatDuration(workout.durationSecs);
   return (
     <div>
-      <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">{label}</p>
       <div className="flex items-baseline gap-2">
         <span>{WORKOUT_ICON[workout.type]}</span>
         <span className="font-semibold text-zinc-100 text-sm leading-snug">{workout.title}</span>
@@ -59,6 +45,27 @@ function WorkoutBlock({ label, workout }: { label: string; workout: Workout | nu
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function WorkoutBlock({ label, workouts }: { label: string; workouts: Workout[] }) {
+  if (workouts.length === 0) {
+    return (
+      <div>
+        <p className="text-xs text-zinc-500 uppercase tracking-wide mb-1">{label}</p>
+        <p className="text-sm text-zinc-600 italic">No workout scheduled</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <p className="text-xs text-zinc-500 uppercase tracking-wide mb-2">{label}</p>
+      <div className="space-y-3">
+        {workouts.map((w, i) => (
+          <WorkoutItem key={i} workout={w} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -168,16 +175,16 @@ export function TrainingWidget({ icsUrl, today, tomorrow, next, weekStats, races
     return <UrlForm current={icsUrl} onCancel={() => setEditingUrl(false)} />;
   }
 
-  const nothingScheduledSoon = !today && !tomorrow;
+  const nothingScheduledSoon = today.length === 0 && tomorrow.length === 0;
 
   return (
     <div className="space-y-4">
-      <WorkoutBlock label="Today" workout={today} />
+      <WorkoutBlock label="Today" workouts={today} />
 
-      {tomorrow && (
+      {tomorrow.length > 0 && (
         <>
           <div className="border-t border-zinc-800" />
-          <WorkoutBlock label="Tomorrow" workout={tomorrow} />
+          <WorkoutBlock label="Tomorrow" workouts={tomorrow} />
         </>
       )}
 

@@ -114,7 +114,7 @@ function parseWorkout(vevent: InstanceType<typeof ICAL.Component>): Workout {
 }
 
 export type TrainingResult =
-  | { ok: true; today: Workout | null; tomorrow: Workout | null; next: UpcomingWorkout | null; weekStats: WeekStats; races: UpcomingRace[] }
+  | { ok: true; today: Workout[]; tomorrow: Workout[]; next: UpcomingWorkout | null; weekStats: WeekStats; races: UpcomingRace[] }
   | { ok: false; error: string };
 
 export async function fetchTrainingData(icsUrl: string): Promise<TrainingResult> {
@@ -140,8 +140,8 @@ export async function fetchTrainingData(icsUrl: string): Promise<TrainingResult>
     const tomorrowStr = toUtcDateStr(new Date(Date.now() + 86_400_000));
     const { start: weekStart, end: weekEnd } = getWeekRange();
 
-    let today: Workout | null = null;
-    let tomorrow: Workout | null = null;
+    const today: Workout[] = [];
+    const tomorrow: Workout[] = [];
     const upcomingWorkouts: { date: string; workout: Workout }[] = [];
     const upcomingRaces: UpcomingRace[] = [];
     const weekStats: WeekStats = { Run: 0, Bike: 0, Swim: 0, Strength: 0, Other: 0, total: 0 };
@@ -164,8 +164,8 @@ export async function fetchTrainingData(icsUrl: string): Promise<TrainingResult>
         continue; // don't process races as workouts
       }
 
-      if (startStr === todayStr) today = workout;
-      else if (startStr === tomorrowStr) tomorrow = workout;
+      if (startStr === todayStr) today.push(workout);
+      else if (startStr === tomorrowStr) tomorrow.push(workout);
       else if (startStr > tomorrowStr) upcomingWorkouts.push({ date: startStr, workout });
 
       // Week stats — includes today, tomorrow, and all days this week
