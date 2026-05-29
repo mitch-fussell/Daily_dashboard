@@ -51,18 +51,27 @@ function cleanDescription(raw: string): string {
     .slice(0, 400);
 }
 
-// TrainingPeaks puts "Actual Time: H:MM" in the description for completed workouts
-function parseActualTime(description: string): number {
-  const match = description.match(/Actual Time:\s*(\d+):(\d+)/i);
+// TrainingPeaks puts "Actual Time: H:MM" or "Actual Time: H:MM:SS" in the
+// description for completed workouts. Parse from the RAW description before
+// any truncation so long descriptions don't hide the field.
+function parseActualTime(rawDescription: string): number {
+  const match = rawDescription.match(/Actual Time:\s*(\d+):(\d+)(?::\d+)?/i);
   if (!match) return 0;
-  return (parseInt(match[1]) * 60 + parseInt(match[2])) * 60; // → seconds
+  return parseInt(match[1]) * 3600 + parseInt(match[2]) * 60;
 }
 
 function parseDuration(event: InstanceType<typeof ICAL.Event>): number {
   try {
     const dur = event.duration;
-    if (dur) return dur.toSeconds();
+    if (dur) {
+      const secs = dur.toSeconds();
+      // P1D = 86400s — this is the all-day calendar span, not a workout duration.
+      // Anything >= 12 hours is almost certainly a calendar artefact, not training.
+      if (secs > 0 && secs < 43_200) return secs;
+    }
   } catch { /* no DURATION property */ }
+  // For all-day DATE events, end−start is always 86400s — skip the fallback.
+  if (event.startDate.isDate) return 0;
   try {
     const ms = event.endDate.toJSDate().getTime() - event.startDate.toJSDate().getTime();
     return Math.max(0, ms / 1000);
@@ -93,8 +102,11 @@ function parseWorkout(vevent: InstanceType<typeof ICAL.Component>): Workout {
   const event = new ICAL.Event(vevent);
   const title = event.summary?.trim() || 'Untitled workout';
   const type = detectType(title);
-  const description = cleanDescription(event.description ?? '');
-  const actualSecs = parseActualTime(description);
+  const rawDescription = event.description ?? '';
+  const description = cleanDescription(rawDescription);
+  // Parse actual time from raw (un-truncated) description — the field often
+  // appears near the end of long TrainingPeaks descriptions.
+  const actualSecs = parseActualTime(rawDescription);
   const durationSecs = actualSecs > 0 ? actualSecs : parseDuration(event);
   const isRest = type === 'Rest' || /rest|off/i.test(title);
   const isRace = getRacePriority(title) !== null;
