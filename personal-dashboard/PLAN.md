@@ -1,74 +1,114 @@
 # Personal Dashboard — Build Plan
 
-## Current Status: Phase 1, Step 1 (Foundation Fixes)
-
+## Current Status: Phase 4 — Production deployed, all core widgets polished
 
 ---
 
-## Phase 1: Fix the Foundation
+## Phase 1: Fix the Foundation ✅ COMPLETE
 
-- [x] **Step 1 — Create `middleware.ts`**
-  Auth guard was in `proxy.ts` (never loaded by Next.js). Fixed by creating `src/middleware.ts`.
+- [x] **Step 1 — Fix auth middleware**
+  Next.js 16 uses `proxy.ts` (not `middleware.ts`). Deleted conflicting `middleware.ts`, kept `src/proxy.ts` as the auth guard.
 
-- [x] **Step 2 — Fix OAuth callback URL for Codespace**
-  `AUTH_URL` updated to: `https://cuddly-barnacle-97x7p5gjgp6w37j7x-3000.app.github.dev`
-
-  **ACTION REQUIRED** — add the callback URL to your GitHub OAuth app:
-  1. Go to https://github.com/settings/developers → your OAuth App
-  2. Add this to "Authorization callback URL":
-     `https://cuddly-barnacle-97x7p5gjgp6w37j7x-3000.app.github.dev/api/auth/callback/github`
-  
-  Note: Codespace names change when the codespace restarts. If you get a new name, update `AUTH_URL` again.
+- [x] **Step 2 — Fix OAuth callback URL**
+  Added GitHub Codespace origin to `serverActions.allowedOrigins` in `next.config.ts`. Added `allowedDevOrigins` for Codespace wildcard. Registered callback URL in GitHub OAuth app settings.
 
 - [x] **Step 3 — Dashboard skeleton UI**
-  Replace boilerplate `page.tsx` with a real layout showing all planned widgets as placeholders.
+  Replaced boilerplate `page.tsx` with full layout: header, todos, habits, notes, calendar, training widgets.
 
-- [ ] **Step 4 — Verify dev server runs cleanly**
-  Run `pnpm dev` and confirm `/`, `/sign-in`, and GitHub sign-in flow all work.
-
----
-
-## Phase 2: Static Dashboard Widgets
-
-- [ ] **Step 5 — Today header widget** (greeting, date, day-of-week)
-- [ ] **Step 6 — Calendar widget placeholder** (shows mock events, labeled "coming soon")
-- [ ] **Step 7 — Training Plan widget placeholder** (shows mock workout, labeled "coming soon")
-- [ ] **Step 8 — Todo list UI** (interactive checkboxes, add/delete — no DB yet, use local state)
-- [ ] **Step 9 — Habits tracker UI** (daily check-in grid — no DB yet)
-- [ ] **Step 10 — Notes widget UI** (textarea, autosave indicator — no DB yet)
+- [x] **Step 4 — Dev server verified**
+  `pnpm dev` runs cleanly. `/`, `/sign-in`, and GitHub OAuth flow all work in Codespace.
 
 ---
 
-## Phase 3: Wire Up the Database (Supabase)
+## Phase 2: Static Dashboard Widgets ✅ COMPLETE (built directly with DB)
 
-- [x] **Step 11 — Todos CRUD** (create, check off, delete — persisted to Supabase `todos` table)
-- [x] **Step 12 — Habits CRUD** (daily log persisted to Supabase `habits` table)
-- [x] **Step 13 — Notes autosave** (debounced 1.5s save to Supabase `notes` table, 3 tabs: Quick Notes / Ideas / Scratch)
+- [x] **Step 5 — Today header widget** (greeting, current date, day-of-week)
+- [x] **Step 6 — Calendar widget** (hour-by-hour daily schedule view)
+- [x] **Step 7 — Training widget placeholder** (later replaced with live ICS integration)
+- [x] **Step 8 — Todo list UI** (add, check off, delete; due dates with urgency colors)
+- [x] **Step 9 — Habits tracker UI** (daily check-in, streak counter, recovery chips)
+- [x] **Step 10 — Notes widget UI** (3-tab textarea with autosave indicator)
+
+---
+
+## Phase 3: Database (Supabase + Drizzle) ✅ COMPLETE
+
+- [x] **Step 11 — Todos CRUD**
+  - Create, toggle, delete, inline edit (name + due date)
+  - `dueAt` timestamp; urgency colors: green (>7d) → yellow (3–7d) → orange (1–3d) → red (today/overdue)
+  - `completedAt` tracked; completed todos hidden after Monday midnight (weekly cleanup)
+  - drizzle-kit migration applied manually via Node.js script (bug in drizzle-kit 0.31 with Supabase CHECK constraints)
+
+- [x] **Step 12 — Habits CRUD**
+  - Create, rename, delete habits
+  - Daily toggle (current day + past 7 days via recovery chips)
+  - Streak counting: alive if today OR yesterday done; resets with "restarted" label
+  - Previous streak shown on restart; UTC-keyed date strings for consistency
+
+- [x] **Step 13 — Notes autosave**
+  - Debounced 1.5s save to Supabase `notes` table
+  - 3 slots: Quick Notes / Ideas / Scratch
+  - Silent save (no revalidatePath); `beforeunload` flush prevents losing edits on tab close
 
 ---
 
 ## Phase 4: External Integrations
 
 - [ ] **Step 14 — Microsoft Calendar** (OAuth flow, read today's events from Graph API)
-- [ ] **Step 15 — TrainingPeaks** (paste ICS URL in settings, show today's planned workout)
+  - Placeholder column visible in calendar widget
+  - AUTH_MICROSOFT_ENTRA_ID_* vars stubbed in .env.local
+
+- [x] **Step 15 — TrainingPeaks ICS integration** ✅
+  - Paste `webcal://` or `https://` ICS URL in settings (persisted to DB per user)
+  - Parses ICS with `ical.js` v2; converts `webcal://` → `https://` at fetch time
+  - Shows **all** workouts for today and tomorrow (multiple sessions per day supported)
+  - Stat pills per workout: Time (actual vs planned), TSS (actual vs planned), Distance
+  - Upcoming races section (A:/B:/C: prefixed events) with priority color badges
+  - Weekly stats: running, biking, swimming, gym, other — totals + grand total
+  - Refresh button (`router.refresh()`) to pull latest feed
+  - Fixed: all-day event duration overflow (was showing 24h per workout — now correctly reads "Actual Time" from raw ICS description before truncation)
+  - **Known limitation**: TrainingPeaks free ICS feed only exports completed workouts; planned future workouts appear after completion
+
 - [ ] **Step 16 — Finance tracker** (manual transaction entry, spending summary widget)
 
 ---
 
-## Known Issues / Blockers
+## Polish & Bugs Fixed ✅
 
-| Issue | Impact | Fix |
-|-------|--------|-----|
-| `AUTH_URL` mismatch in Codespace | OAuth 404 after GitHub login | Update `.env.local` + GitHub OAuth app settings |
-| DB password in `.env.local` has brackets `[...]` | Possible connection failure | Verify it's the real password from Supabase dashboard |
-| GitHub OAuth secret exposed in `.env.local` | Security risk | Rotate the secret, never commit `.env.local` |
+- [x] **Data persistence verified** — all widget data (todos, habits, notes, training URL) stored in Supabase and loaded fresh on every page visit; JWT session cookie survives browser close (30-day expiry)
+- [x] **User ID mismatch fixed** — JWT now looks up the real DB user ID by email after OAuth sign-in, preventing session ID mismatch with existing DB records
+- [x] **Font changed to Poppins** — weights 300–700 loaded via `next/font/google`; replaces Geist across the entire app
+- [x] **Layout reorganized** — Calendar in column 1; Todos + Habits + Notes stacked in column 2; Training Plan in column 3
+- [x] **Speed Insights added** — `@vercel/speed-insights` in root layout for Vercel performance monitoring
 
 ---
 
-## Architecture Notes
+## Deployment ✅ COMPLETE
+
+- [x] Vercel project linked (`daily-dashboard`)
+- [x] Root directory: `personal-dashboard`, Framework: Next.js
+- [x] All env vars in Production scope: `DATABASE_URL`, `AUTH_SECRET`, `AUTH_GITHUB_ID`, `AUTH_GITHUB_SECRET`, `AUTH_URL`
+- [x] pnpm esbuild build scripts unblocked via `onlyBuiltDependencies` in `package.json`
+- [x] Large binary removed from git history; clean force-push
+- [x] GitHub OAuth working end-to-end at `https://daily-dashboard-umber.vercel.app`
+
+---
+
+## Security Notes
+
+| Secret | Status |
+|--------|--------|
+| `AUTH_GITHUB_SECRET` | Rotate if not already done — old value was exposed in chat |
+| `DATABASE_URL` | `.env.local` + Vercel Production only — never commit |
+| `.env.local` | In `.gitignore` — never commit |
+
+---
+
+## Architecture
 
 - **Framework**: Next.js 16 (App Router), React 19
-- **Auth**: NextAuth v5 beta (JWT strategy, GitHub provider)
-- **Database**: Supabase Postgres via Drizzle ORM
-- **UI**: Tailwind v4 + shadcn components
-- **Deployment**: Vercel
+- **Auth**: NextAuth v5 beta — JWT strategy, GitHub OAuth, `proxy.ts` guard (Next.js 16 pattern)
+- **Database**: Supabase Postgres (transaction pooler port 6543) via Drizzle ORM (`prepare: false`)
+- **UI**: Tailwind v4 + shadcn components + Poppins font
+- **Deployment**: Vercel (Git-connected, auto-deploys on push to `main`)
+- **Package manager**: pnpm v9
