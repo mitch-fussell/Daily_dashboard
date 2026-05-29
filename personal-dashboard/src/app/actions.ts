@@ -112,22 +112,18 @@ export async function deleteHabit(id: string) {
 
 // ── Calendar ──────────────────────────────────────────────────────────────────
 
-export async function saveCalendarUrl(formData: FormData) {
-  const userId = await getUserId();
-  const raw = (formData.get('calIcsUrl') as string)?.trim();
-  const url = raw ? raw.replace(/^webcal:\/\//i, 'https://') : null;
-  await db.update(users)
-    .set({ calIcsUrl: url || null })
-    .where(eq(users.id, userId));
-  revalidatePath('/');
+function normalizeIcsUrl(raw: string | null): string | null {
+  if (!raw?.trim()) return null;
+  return raw.trim().replace(/^webcal:\/\//i, 'https://');
 }
 
-// ── Microsoft Calendar ────────────────────────────────────────────────────────
-
-export async function disconnectMsCalendar() {
+export async function saveCalendarUrls(formData: FormData) {
   const userId = await getUserId();
   await db.update(users)
-    .set({ msAccessToken: null, msRefreshToken: null, msTokenExpiresAt: null })
+    .set({
+      calIcsUrl: normalizeIcsUrl(formData.get('calIcsUrl') as string),
+      calIcsUrl2: normalizeIcsUrl(formData.get('calIcsUrl2') as string),
+    })
     .where(eq(users.id, userId));
   revalidatePath('/');
 }

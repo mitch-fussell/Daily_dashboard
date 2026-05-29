@@ -10,7 +10,6 @@ import { CalendarWidget } from '@/components/calendar-widget';
 import { TrainingWidget } from '@/components/training-widget';
 import { fetchTrainingData } from '@/lib/training-peaks';
 import { fetchCalendarEvents } from '@/lib/calendar';
-import { fetchMsCalendarEvents } from '@/lib/ms-graph';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -29,9 +28,7 @@ export default async function DashboardPage() {
     db.select({
       tpIcsUrl: users.tpIcsUrl,
       calIcsUrl: users.calIcsUrl,
-      msAccessToken: users.msAccessToken,
-      msRefreshToken: users.msRefreshToken,
-      msTokenExpiresAt: users.msTokenExpiresAt,
+      calIcsUrl2: users.calIcsUrl2,
     }).from(users).where(eq(users.id, userId)),
     db.select().from(todos).where(eq(todos.userId, userId)),
     db.select().from(habits).where(eq(habits.userId, userId)),
@@ -40,21 +37,23 @@ export default async function DashboardPage() {
 
   const tpIcsUrl = userRecord?.tpIcsUrl ?? null;
   const calIcsUrl = userRecord?.calIcsUrl ?? null;
-  const msConnected = !!userRecord?.msAccessToken;
+  const calIcsUrl2 = userRecord?.calIcsUrl2 ?? null;
 
-  const [trainingResult, calendarResult, msCalendarResult] = await Promise.all([
+  const [trainingResult, cal1Result, cal2Result] = await Promise.all([
     tpIcsUrl ? fetchTrainingData(tpIcsUrl) : null,
     calIcsUrl ? fetchCalendarEvents(calIcsUrl) : null,
-    msConnected ? fetchMsCalendarEvents(userId, {
-      msAccessToken: userRecord!.msAccessToken,
-      msRefreshToken: userRecord!.msRefreshToken,
-      msTokenExpiresAt: userRecord!.msTokenExpiresAt,
-    }) : null,
+    calIcsUrl2 ? fetchCalendarEvents(calIcsUrl2) : null,
   ]);
 
   const trainingFetchError = trainingResult && !trainingResult.ok ? trainingResult.error : null;
-  const calendarFetchError = calendarResult && !calendarResult.ok ? calendarResult.error : null;
-  const msFetchError = msCalendarResult && !msCalendarResult.ok ? msCalendarResult.error : null;
+
+  const cal1Events = cal1Result?.ok ? cal1Result.events : [];
+  const cal1AllDay = cal1Result?.ok ? cal1Result.allDay : [];
+  const cal1Error = cal1Result && !cal1Result.ok ? cal1Result.error : null;
+
+  const cal2Events = cal2Result?.ok ? cal2Result.events : [];
+  const cal2AllDay = cal2Result?.ok ? cal2Result.allDay : [];
+  const cal2Error = cal2Result && !cal2Result.ok ? cal2Result.error : null;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -88,16 +87,14 @@ export default async function DashboardPage() {
 
           {/* Column 1: Calendar */}
           <div className="space-y-4">
-            <Widget title="Today" badge={calIcsUrl || msConnected ? undefined : 'not connected'}>
+            <Widget title="Today" badge={calIcsUrl || calIcsUrl2 ? undefined : 'not connected'}>
               <CalendarWidget
                 calIcsUrl={calIcsUrl}
-                events={calendarResult?.ok ? calendarResult.events : []}
-                allDay={calendarResult?.ok ? calendarResult.allDay : []}
-                fetchError={calendarFetchError}
-                msConnected={msConnected}
-                msEvents={msCalendarResult?.ok ? msCalendarResult.events : []}
-                msAllDay={msCalendarResult?.ok ? msCalendarResult.allDay : []}
-                msFetchError={msFetchError}
+                calIcsUrl2={calIcsUrl2}
+                events={[...cal1Events, ...cal2Events]}
+                allDay={[...cal1AllDay, ...cal2AllDay]}
+                cal1Error={cal1Error}
+                cal2Error={cal2Error}
               />
             </Widget>
           </div>
