@@ -106,10 +106,7 @@ export function CalendarWidget({ calIcsUrl, calIcsUrl2, events, allDay, cal1Erro
   const totalPx = totalHours * HOUR_PX;
   const hours = Array.from({ length: totalHours }, (_, i) => DAY_START + i);
 
-  // Sort merged events by start time
-  const sortedEvents = [...events].sort(
-    (a, b) => a.startH * 60 + a.startM - (b.startH * 60 + b.startM)
-  );
+  const sortedEvents = [...events].sort((a, b) => a.startMs - b.startMs);
 
   useEffect(() => {
     function update() {
@@ -195,8 +192,14 @@ export function CalendarWidget({ calIcsUrl, calIcsUrl2, events, allDay, cal1Erro
             </div>
           )}
           {sortedEvents.map((ev, i) => {
-            const topMins = minutesFromDayStart(ev.startH, ev.startM);
-            const heightMins = (ev.endH - ev.startH) * 60 + (ev.endM - ev.startM);
+            const s = new Date(ev.startMs);
+            const e = new Date(ev.endMs);
+            const startH = s.getHours();
+            const startM = s.getMinutes();
+            const endH = e.getHours();
+            const endM = e.getMinutes();
+            const topMins = minutesFromDayStart(startH, startM);
+            const heightMins = (endH - startH) * 60 + (endM - startM);
             const top = (topMins / 60) * HOUR_PX;
             const height = Math.max((heightMins / 60) * HOUR_PX, 20);
             return (
@@ -208,7 +211,7 @@ export function CalendarWidget({ calIcsUrl, calIcsUrl2, events, allDay, cal1Erro
                 <p className="text-xs font-medium leading-tight truncate">{ev.title}</p>
                 {height > 28 && (
                   <p className="text-xs opacity-70 leading-tight">
-                    {formatTime(ev.startH, ev.startM)}–{formatTime(ev.endH, ev.endM)}
+                    {formatTime(startH, startM)}–{formatTime(endH, endM)}
                   </p>
                 )}
                 {height > 46 && ev.location && (

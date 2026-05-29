@@ -114,16 +114,13 @@ export async function fetchMsCalendarEvents(userId: string, tokens: UserTokens):
       continue;
     }
 
-    // Times come back in UTC (Prefer header set above)
     const s = new Date(item.start.dateTime + (item.start.dateTime.endsWith('Z') ? '' : 'Z'));
     const e = new Date(item.end.dateTime + (item.end.dateTime.endsWith('Z') ? '' : 'Z'));
 
     events.push({
       title,
-      startH: s.getUTCHours(),
-      startM: s.getUTCMinutes(),
-      endH: e.getUTCHours(),
-      endM: e.getUTCMinutes(),
+      startMs: s.getTime(),
+      endMs: e.getTime(),
       color: COLORS[colorIdx++ % COLORS.length],
       location: item.location?.displayName?.trim() || null,
     });

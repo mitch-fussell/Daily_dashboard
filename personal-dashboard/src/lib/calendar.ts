@@ -2,10 +2,8 @@ import ICAL from 'ical.js';
 
 export type CalEvent = {
   title: string;
-  startH: number;
-  startM: number;
-  endH: number;
-  endM: number;
+  startMs: number; // UTC epoch ms — converted to local hours in the client widget
+  endMs: number;
   color: 'blue' | 'purple' | 'emerald' | 'rose';
   location: string | null;
 };
@@ -93,27 +91,24 @@ export async function fetchCalendarEvents(icsUrl: string): Promise<CalendarResul
         continue;
       }
 
-      const startH = startDate!.getHours();
-      const startM = startDate!.getMinutes();
-      let endH = endDate!.getHours();
-      let endM = endDate!.getMinutes();
+      let endMs = endDate!.getTime();
 
-      // Midnight end = effectively end-of-day for multi-day events
-      if (endH === 0 && endM === 0) { endH = 23; endM = 59; }
+      // Midnight UTC end = treat as end-of-day for multi-day events
+      const endD = endDate!;
+      if (endD.getUTCHours() === 0 && endD.getUTCMinutes() === 0) {
+        endMs = endMs - 1; // back off 1ms so it stays on the same day
+      }
 
       events.push({
         title,
-        startH,
-        startM,
-        endH,
-        endM,
+        startMs: startDate!.getTime(),
+        endMs,
         color: COLORS[colorIdx++ % COLORS.length],
         location,
       });
     }
 
-    // Sort by start time
-    events.sort((a, b) => a.startH * 60 + a.startM - (b.startH * 60 + b.startM));
+    events.sort((a, b) => a.startMs - b.startMs);
 
     return { ok: true, events, allDay };
   } catch (e) {
