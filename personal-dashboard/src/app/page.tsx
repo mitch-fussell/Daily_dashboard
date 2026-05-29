@@ -9,6 +9,7 @@ import { NotesWidget } from '@/components/notes-widget';
 import { CalendarWidget } from '@/components/calendar-widget';
 import { TrainingWidget } from '@/components/training-widget';
 import { fetchTrainingData } from '@/lib/training-peaks';
+import { fetchCalendarEvents } from '@/lib/calendar';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -24,15 +25,22 @@ export default async function DashboardPage() {
   });
 
   const [[userRecord], userTodos, userHabits, userNotes] = await Promise.all([
-    db.select({ tpIcsUrl: users.tpIcsUrl }).from(users).where(eq(users.id, userId)),
+    db.select({ tpIcsUrl: users.tpIcsUrl, calIcsUrl: users.calIcsUrl }).from(users).where(eq(users.id, userId)),
     db.select().from(todos).where(eq(todos.userId, userId)),
     db.select().from(habits).where(eq(habits.userId, userId)),
     db.select().from(notes).where(eq(notes.userId, userId)).orderBy(asc(notes.slot)),
   ]);
 
-  const icsUrl = userRecord?.tpIcsUrl ?? null;
-  const trainingResult = icsUrl ? await fetchTrainingData(icsUrl) : null;
+  const tpIcsUrl = userRecord?.tpIcsUrl ?? null;
+  const calIcsUrl = userRecord?.calIcsUrl ?? null;
+
+  const [trainingResult, calendarResult] = await Promise.all([
+    tpIcsUrl ? fetchTrainingData(tpIcsUrl) : null,
+    calIcsUrl ? fetchCalendarEvents(calIcsUrl) : null,
+  ]);
+
   const trainingFetchError = trainingResult && !trainingResult.ok ? trainingResult.error : null;
+  const calendarFetchError = calendarResult && !calendarResult.ok ? calendarResult.error : null;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -66,11 +74,13 @@ export default async function DashboardPage() {
 
           {/* Column 1: Calendar */}
           <div className="space-y-4">
-            <Widget title="Today" badge="coming soon">
-              <CalendarWidget />
-              <p className="text-xs text-zinc-600 mt-2">
-                Placeholder — Microsoft Calendar connects in Step 14
-              </p>
+            <Widget title="Today" badge={calIcsUrl ? undefined : 'not connected'}>
+              <CalendarWidget
+                calIcsUrl={calIcsUrl}
+                events={calendarResult?.ok ? calendarResult.events : []}
+                allDay={calendarResult?.ok ? calendarResult.allDay : []}
+                fetchError={calendarFetchError}
+              />
             </Widget>
           </div>
 
@@ -94,9 +104,9 @@ export default async function DashboardPage() {
 
           {/* Column 3: Training Plan */}
           <div>
-            <Widget title="Training Plan" badge={icsUrl ? undefined : 'not connected'}>
+            <Widget title="Training Plan" badge={tpIcsUrl ? undefined : 'not connected'}>
               <TrainingWidget
-                icsUrl={icsUrl}
+                icsUrl={tpIcsUrl}
                 today={trainingResult?.ok ? trainingResult.today : []}
                 tomorrow={trainingResult?.ok ? trainingResult.tomorrow : []}
                 next={trainingResult?.ok ? trainingResult.next : null}

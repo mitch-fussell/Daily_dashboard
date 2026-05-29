@@ -8,6 +8,7 @@ export const users = pgTable('users', {
   msRefreshToken: text('ms_refresh_token'),
   msTokenExpiresAt: timestamp('ms_token_expires_at'),
   tpIcsUrl: text('tp_ics_url'),
+  calIcsUrl: text('cal_ics_url'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
 

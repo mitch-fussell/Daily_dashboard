@@ -110,6 +110,18 @@ export async function deleteHabit(id: string) {
   revalidatePath('/');
 }
 
+// ── Calendar ──────────────────────────────────────────────────────────────────
+
+export async function saveCalendarUrl(formData: FormData) {
+  const userId = await getUserId();
+  const raw = (formData.get('calIcsUrl') as string)?.trim();
+  const url = raw ? raw.replace(/^webcal:\/\//i, 'https://') : null;
+  await db.update(users)
+    .set({ calIcsUrl: url || null })
+    .where(eq(users.id, userId));
+  revalidatePath('/');
+}
+
 // ── TrainingPeaks ─────────────────────────────────────────────────────────────
 
 export async function saveTrainingPeaksUrl(formData: FormData) {
