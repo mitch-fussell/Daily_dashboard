@@ -122,6 +122,16 @@ export async function saveCalendarUrl(formData: FormData) {
   revalidatePath('/');
 }
 
+// ── Microsoft Calendar ────────────────────────────────────────────────────────
+
+export async function disconnectMsCalendar() {
+  const userId = await getUserId();
+  await db.update(users)
+    .set({ msAccessToken: null, msRefreshToken: null, msTokenExpiresAt: null })
+    .where(eq(users.id, userId));
+  revalidatePath('/');
+}
+
 // ── TrainingPeaks ─────────────────────────────────────────────────────────────
 
 export async function saveTrainingPeaksUrl(formData: FormData) {

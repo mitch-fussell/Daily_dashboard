@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { saveCalendarUrl } from '@/app/actions';
+import { saveCalendarUrl, disconnectMsCalendar } from '@/app/actions';
 import type { CalEvent } from '@/lib/calendar';
 
 const HOUR_PX = 64;
@@ -33,7 +33,7 @@ function formatTime(h: number, m: number) {
   return `${displayH}:${String(m).padStart(2, '0')} ${period}`;
 }
 
-function UrlForm({ current, onCancel }: { current: string | null; onCancel?: () => void }) {
+function IcsUrlForm({ current, onCancel }: { current: string | null; onCancel?: () => void }) {
   return (
     <form action={saveCalendarUrl} className="space-y-2">
       <p className="text-xs text-zinc-400 leading-relaxed">
@@ -70,23 +70,73 @@ function UrlForm({ current, onCancel }: { current: string | null; onCancel?: () 
   );
 }
 
+function ConnectOptions() {
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-zinc-400">Connect via Microsoft</p>
+        <a href="/api/ms-calendar/connect"
+          className="flex items-center gap-2 bg-[#0078d4] hover:bg-[#006cbf] text-white text-xs px-3 py-2 rounded-lg transition-colors w-fit">
+          <MsIcon />
+          Sign in with Microsoft
+        </a>
+      </div>
+      <div className="border-t border-zinc-800 pt-3 space-y-2">
+        <p className="text-xs font-medium text-zinc-400">Or connect via ICS link</p>
+        <IcsUrlForm current={null} />
+      </div>
+    </div>
+  );
+}
+
+function MsIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 21 21" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="9" height="9" fill="#f25022" />
+      <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
+      <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
+      <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
+    </svg>
+  );
+}
+
 type Props = {
   calIcsUrl: string | null;
   events: CalEvent[];
   allDay: string[];
   fetchError: string | null;
+  msConnected: boolean;
+  msEvents: CalEvent[];
+  msAllDay: string[];
+  msFetchError: string | null;
 };
 
-export function CalendarWidget({ calIcsUrl, events, allDay, fetchError }: Props) {
+export function CalendarWidget({
+  calIcsUrl,
+  events,
+  allDay,
+  fetchError,
+  msConnected,
+  msEvents,
+  msAllDay,
+  msFetchError,
+}: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [nowMinutes, setNowMinutes] = useState<number | null>(null);
-  const [editingUrl, setEditingUrl] = useState(false);
+  const [editingIcs, setEditingIcs] = useState(false);
   const [isRefreshing, startRefresh] = useTransition();
+  const [isDisconnecting, startDisconnect] = useTransition();
   const router = useRouter();
 
   const totalHours = DAY_END - DAY_START;
   const totalPx = totalHours * HOUR_PX;
   const hours = Array.from({ length: totalHours }, (_, i) => DAY_START + i);
+
+  // Merge ICS and MS events, sorted by start time
+  const allEvents = [...events, ...msEvents].sort(
+    (a, b) => a.startH * 60 + a.startM - (b.startH * 60 + b.startM)
+  );
+  const allDayEvents = [...allDay, ...msAllDay];
 
   useEffect(() => {
     function update() {
@@ -105,30 +155,33 @@ export function CalendarWidget({ calIcsUrl, events, allDay, fetchError }: Props)
     }
   }, [nowMinutes]);
 
-  // Not connected yet
-  if (!calIcsUrl) return <UrlForm current={null} />;
+  // Nothing connected — show setup options
+  if (!calIcsUrl && !msConnected) return <ConnectOptions />;
 
-  // Error fetching
-  if (fetchError) {
-    return (
-      <div className="space-y-3">
-        <p className="text-xs text-red-400 font-medium">Could not load calendar</p>
-        <p className="text-xs text-zinc-500 font-mono bg-zinc-800 px-2 py-1 rounded">{fetchError}</p>
-        <UrlForm current={calIcsUrl} onCancel={() => setEditingUrl(false)} />
-      </div>
-    );
-  }
-
-  if (editingUrl) {
-    return <UrlForm current={calIcsUrl} onCancel={() => setEditingUrl(false)} />;
+  // ICS error (shown when editing ICS)
+  if (editingIcs) {
+    return <IcsUrlForm current={calIcsUrl} onCancel={() => setEditingIcs(false)} />;
   }
 
   return (
     <div className="space-y-2">
+      {/* Error banners */}
+      {fetchError && (
+        <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded px-2 py-1">
+          ICS error: {fetchError}
+        </div>
+      )}
+      {msFetchError && (
+        <div className="text-xs text-red-400 bg-red-900/20 border border-red-800/40 rounded px-2 py-1">
+          Microsoft: {msFetchError}{' '}
+          <a href="/api/ms-calendar/connect" className="underline hover:text-red-300">Reconnect</a>
+        </div>
+      )}
+
       {/* All-day events */}
-      {allDay.length > 0 && (
+      {allDayEvents.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-1">
-          {allDay.map((title, i) => (
+          {allDayEvents.map((title, i) => (
             <span key={i} className="text-xs bg-indigo-900/50 text-indigo-300 border border-indigo-700/50 px-2 py-0.5 rounded-full truncate max-w-full">
               {title}
             </span>
@@ -163,12 +216,12 @@ export function CalendarWidget({ calIcsUrl, events, allDay, fetchError }: Props)
           ))}
 
           {/* Events */}
-          {events.length === 0 && (
+          {allEvents.length === 0 && (
             <div className="absolute left-14 right-0 top-4">
               <p className="text-xs text-zinc-600 italic">No events today</p>
             </div>
           )}
-          {events.map((ev, i) => {
+          {allEvents.map((ev, i) => {
             const topMins = minutesFromDayStart(ev.startH, ev.startM);
             const heightMins = (ev.endH - ev.startH) * 60 + (ev.endM - ev.startM);
             const top = (topMins / 60) * HOUR_PX;
@@ -204,17 +257,34 @@ export function CalendarWidget({ calIcsUrl, events, allDay, fetchError }: Props)
       </div>
 
       {/* Footer controls */}
-      <div className="flex gap-3 border-t border-zinc-800 pt-2">
+      <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-zinc-800 pt-2">
         <button type="button"
           onClick={() => startRefresh(() => { router.refresh(); })}
           disabled={isRefreshing}
           className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-40">
           {isRefreshing ? '↻ Refreshing…' : '↻ Refresh'}
         </button>
-        <button type="button" onClick={() => setEditingUrl(true)}
-          className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors ml-auto">
-          ⚙ Update URL
-        </button>
+
+        {calIcsUrl && (
+          <button type="button" onClick={() => setEditingIcs(true)}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors">
+            ⚙ ICS URL
+          </button>
+        )}
+
+        {msConnected ? (
+          <button type="button"
+            disabled={isDisconnecting}
+            onClick={() => startDisconnect(async () => { await disconnectMsCalendar(); })}
+            className="text-xs text-zinc-500 hover:text-red-400 transition-colors ml-auto disabled:opacity-40">
+            {isDisconnecting ? 'Disconnecting…' : '× Microsoft'}
+          </button>
+        ) : (
+          <a href="/api/ms-calendar/connect"
+            className="text-xs text-zinc-500 hover:text-[#0078d4] transition-colors ml-auto">
+            + Connect Microsoft
+          </a>
+        )}
       </div>
     </div>
   );

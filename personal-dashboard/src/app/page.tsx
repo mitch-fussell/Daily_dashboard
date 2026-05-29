@@ -10,6 +10,7 @@ import { CalendarWidget } from '@/components/calendar-widget';
 import { TrainingWidget } from '@/components/training-widget';
 import { fetchTrainingData } from '@/lib/training-peaks';
 import { fetchCalendarEvents } from '@/lib/calendar';
+import { fetchMsCalendarEvents } from '@/lib/ms-graph';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -25,7 +26,13 @@ export default async function DashboardPage() {
   });
 
   const [[userRecord], userTodos, userHabits, userNotes] = await Promise.all([
-    db.select({ tpIcsUrl: users.tpIcsUrl, calIcsUrl: users.calIcsUrl }).from(users).where(eq(users.id, userId)),
+    db.select({
+      tpIcsUrl: users.tpIcsUrl,
+      calIcsUrl: users.calIcsUrl,
+      msAccessToken: users.msAccessToken,
+      msRefreshToken: users.msRefreshToken,
+      msTokenExpiresAt: users.msTokenExpiresAt,
+    }).from(users).where(eq(users.id, userId)),
     db.select().from(todos).where(eq(todos.userId, userId)),
     db.select().from(habits).where(eq(habits.userId, userId)),
     db.select().from(notes).where(eq(notes.userId, userId)).orderBy(asc(notes.slot)),
@@ -33,14 +40,21 @@ export default async function DashboardPage() {
 
   const tpIcsUrl = userRecord?.tpIcsUrl ?? null;
   const calIcsUrl = userRecord?.calIcsUrl ?? null;
+  const msConnected = !!userRecord?.msAccessToken;
 
-  const [trainingResult, calendarResult] = await Promise.all([
+  const [trainingResult, calendarResult, msCalendarResult] = await Promise.all([
     tpIcsUrl ? fetchTrainingData(tpIcsUrl) : null,
     calIcsUrl ? fetchCalendarEvents(calIcsUrl) : null,
+    msConnected ? fetchMsCalendarEvents(userId, {
+      msAccessToken: userRecord!.msAccessToken,
+      msRefreshToken: userRecord!.msRefreshToken,
+      msTokenExpiresAt: userRecord!.msTokenExpiresAt,
+    }) : null,
   ]);
 
   const trainingFetchError = trainingResult && !trainingResult.ok ? trainingResult.error : null;
   const calendarFetchError = calendarResult && !calendarResult.ok ? calendarResult.error : null;
+  const msFetchError = msCalendarResult && !msCalendarResult.ok ? msCalendarResult.error : null;
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -74,12 +88,16 @@ export default async function DashboardPage() {
 
           {/* Column 1: Calendar */}
           <div className="space-y-4">
-            <Widget title="Today" badge={calIcsUrl ? undefined : 'not connected'}>
+            <Widget title="Today" badge={calIcsUrl || msConnected ? undefined : 'not connected'}>
               <CalendarWidget
                 calIcsUrl={calIcsUrl}
                 events={calendarResult?.ok ? calendarResult.events : []}
                 allDay={calendarResult?.ok ? calendarResult.allDay : []}
                 fetchError={calendarFetchError}
+                msConnected={msConnected}
+                msEvents={msCalendarResult?.ok ? msCalendarResult.events : []}
+                msAllDay={msCalendarResult?.ok ? msCalendarResult.allDay : []}
+                msFetchError={msFetchError}
               />
             </Widget>
           </div>

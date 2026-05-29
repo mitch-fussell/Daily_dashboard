@@ -54,9 +54,13 @@
 
 ## Phase 4: External Integrations
 
-- [ ] **Step 14 — Microsoft Calendar** (OAuth flow, read today's events from Graph API)
-  - Placeholder column visible in calendar widget
-  - AUTH_MICROSOFT_ENTRA_ID_* vars stubbed in .env.local
+- [x] **Step 14 — Microsoft Calendar** ✅ (OAuth flow, Graph API)
+  - `/api/ms-calendar/connect` → Microsoft OAuth redirect (state cookie for CSRF)
+  - `/api/ms-calendar/callback` → exchanges code for tokens, stores in DB
+  - `src/lib/ms-graph.ts` — Graph API calendarView fetch + automatic token refresh; clears token on 401
+  - Calendar widget merges MS + ICS events in same timeline; shows connect/disconnect controls
+  - Env vars: `AUTH_MICROSOFT_ENTRA_ID_ID` + `AUTH_MICROSOFT_ENTRA_ID_SECRET`
+  - Azure app needs: Web redirect URI `<AUTH_URL>/api/ms-calendar/callback`, Calendars.Read + offline_access permissions
 
 - [x] **Step 15 — TrainingPeaks ICS integration** ✅
   - Paste `webcal://` or `https://` ICS URL in settings (persisted to DB per user)
