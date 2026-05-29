@@ -1,13 +1,14 @@
 import { auth, signOut } from '@/auth';
 import { redirect } from 'next/navigation';
 import { db } from '@/db';
-import { todos, habits, notes, users } from '@/db/schema';
-import { eq, asc } from 'drizzle-orm';
+import { todos, habits, notes, users, transactions } from '@/db/schema';
+import { eq, asc, desc, and, gte, lt } from 'drizzle-orm';
 import { TodosWidget } from '@/components/todos-widget';
 import { HabitsWidget } from '@/components/habits-widget';
 import { NotesWidget } from '@/components/notes-widget';
 import { CalendarWidget } from '@/components/calendar-widget';
 import { TrainingWidget } from '@/components/training-widget';
+import { FinanceWidget, type MonthlySummary, type TxRow } from '@/components/finance-widget';
 import { fetchTrainingData } from '@/lib/training-peaks';
 import { fetchCalendarEvents } from '@/lib/calendar';
 
@@ -24,7 +25,12 @@ export default async function DashboardPage() {
     day: 'numeric',
   });
 
-  const [[userRecord], userTodos, userHabits, userNotes] = await Promise.all([
+  // Month boundaries for finance summary
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+  const [[userRecord], userTodos, userHabits, userNotes, monthTx, recentTx] = await Promise.all([
     db.select({
       tpIcsUrl: users.tpIcsUrl,
       calIcsUrl: users.calIcsUrl,
@@ -33,6 +39,13 @@ export default async function DashboardPage() {
     db.select().from(todos).where(eq(todos.userId, userId)),
     db.select().from(habits).where(eq(habits.userId, userId)),
     db.select().from(notes).where(eq(notes.userId, userId)).orderBy(asc(notes.slot)),
+    db.select().from(transactions)
+      .where(and(eq(transactions.userId, userId), gte(transactions.occurredAt, monthStart), lt(transactions.occurredAt, monthEnd)))
+      .orderBy(asc(transactions.occurredAt)),
+    db.select().from(transactions)
+      .where(eq(transactions.userId, userId))
+      .orderBy(desc(transactions.occurredAt))
+      .limit(20),
   ]);
 
   const tpIcsUrl = userRecord?.tpIcsUrl ?? null;
@@ -46,14 +59,44 @@ export default async function DashboardPage() {
   ]);
 
   const trainingFetchError = trainingResult && !trainingResult.ok ? trainingResult.error : null;
-
   const cal1Events = cal1Result?.ok ? cal1Result.events : [];
   const cal1AllDay = cal1Result?.ok ? cal1Result.allDay : [];
   const cal1Error = cal1Result && !cal1Result.ok ? cal1Result.error : null;
-
   const cal2Events = cal2Result?.ok ? cal2Result.events : [];
   const cal2AllDay = cal2Result?.ok ? cal2Result.allDay : [];
   const cal2Error = cal2Result && !cal2Result.ok ? cal2Result.error : null;
+
+  // Build finance summary from this month's transactions
+  let income = 0;
+  let expenses = 0;
+  const catMap = new Map<string, number>();
+  for (const tx of monthTx) {
+    if (tx.amount >= 0) income += tx.amount;
+    else expenses += tx.amount;
+    if (tx.amount < 0) {
+      const cat = tx.category ?? 'Other';
+      catMap.set(cat, (catMap.get(cat) ?? 0) + tx.amount);
+    }
+  }
+  const byCategory = [...catMap.entries()]
+    .map(([category, total]) => ({ category, total }))
+    .sort((a, b) => a.total - b.total); // most negative first
+
+  const summary: MonthlySummary = {
+    month: now.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+    income,
+    expenses,
+    byCategory,
+  };
+
+  const recent: TxRow[] = recentTx.map((tx) => ({
+    id: tx.id,
+    description: tx.description,
+    amount: tx.amount,
+    category: tx.category,
+    occurredAt: tx.occurredAt,
+    pending: tx.pending,
+  }));
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white">
@@ -82,7 +125,7 @@ export default async function DashboardPage() {
           </form>
         </header>
 
-        {/* Dashboard grid */}
+        {/* Dashboard grid — 3 columns, Finance gets its own row below */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 
           {/* Column 1: Calendar */}
@@ -117,8 +160,8 @@ export default async function DashboardPage() {
             </Widget>
           </div>
 
-          {/* Column 3: Training Plan */}
-          <div>
+          {/* Column 3: Training Plan + Finance */}
+          <div className="space-y-4">
             <Widget title="Training Plan" badge={tpIcsUrl ? undefined : 'not connected'}>
               <TrainingWidget
                 icsUrl={tpIcsUrl}
@@ -129,6 +172,10 @@ export default async function DashboardPage() {
                 races={trainingResult?.ok ? trainingResult.races : []}
                 fetchError={trainingFetchError}
               />
+            </Widget>
+
+            <Widget title="Finance" badge={recentTx.length === 0 ? 'no data' : undefined}>
+              <FinanceWidget summary={summary} recent={recent} hasAny={recentTx.length > 0} />
             </Widget>
           </div>
         </div>

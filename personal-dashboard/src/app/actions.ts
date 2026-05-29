@@ -2,7 +2,7 @@
 
 import { auth } from '@/auth';
 import { db } from '@/db';
-import { todos, habits, notes, users } from '@/db/schema';
+import { todos, habits, notes, users, transactions } from '@/db/schema';
 import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
@@ -164,4 +164,44 @@ export async function saveNote(slot: number, content: string) {
     });
   }
   // No revalidatePath — autosave runs silently without re-rendering the page
+}
+
+// ── Finance / CSV import ──────────────────────────────────────────────────────
+
+export async function importTransactionsCsv(formData: FormData) {
+  const userId = await getUserId();
+  const file = formData.get('csv') as File | null;
+  if (!file || file.size === 0) { revalidatePath('/'); redirect('/'); }
+
+  const { parseCsv } = await import('@/lib/csv-import');
+  const text = await file.text();
+  const { rows, skipped } = parseCsv(text);
+
+  let imported = 0;
+  for (const row of rows) {
+    const result = await db
+      .insert(transactions)
+      .values({
+        id: crypto.randomUUID(),
+        userId,
+        description: row.description,
+        amount: row.amount,
+        category: row.category,
+        occurredAt: row.occurredAt,
+        importKey: row.importKey,
+        pending: false,
+      })
+      .onConflictDoNothing({ target: transactions.importKey });
+    if (result.length > 0) imported++;
+  }
+
+  revalidatePath('/');
+  redirect('/');
+}
+
+export async function deleteTransaction(id: string) {
+  const userId = await getUserId();
+  await db.delete(transactions)
+    .where(and(eq(transactions.id, id), eq(transactions.userId, userId)));
+  revalidatePath('/');
 }

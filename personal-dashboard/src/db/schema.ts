@@ -35,9 +35,11 @@ export const transactions = pgTable('transactions', {
   id: text('id').primaryKey(),
   userId: text('user_id').references(() => users.id).notNull(),
   description: text('description').notNull(),
-  amount: integer('amount').notNull(), // cents, signed
+  amount: integer('amount').notNull(), // cents, signed (negative = expense)
   category: text('category'),
   occurredAt: timestamp('occurred_at').notNull(),
+  importKey: text('import_key').unique(), // hash for dedup on re-import
+  pending: boolean('pending').default(false).notNull(),
 });
 
 export const notes = pgTable('notes', {
