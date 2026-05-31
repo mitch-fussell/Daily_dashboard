@@ -1,1 +1,1 @@
-# Claude_lessons
+# daily_dashboard
