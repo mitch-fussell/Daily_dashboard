@@ -9,8 +9,10 @@ import { NotesWidget } from '@/components/notes-widget';
 import { CalendarWidget } from '@/components/calendar-widget';
 import { TrainingWidget } from '@/components/training-widget';
 import { FinanceWidget, type MonthlySummary, type TxRow } from '@/components/finance-widget';
+import { EmailWidget } from '@/components/email-widget';
 import { fetchTrainingData } from '@/lib/training-peaks';
 import { fetchCalendarEvents } from '@/lib/calendar';
+import { fetchMsMessages } from '@/lib/ms-graph';
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -35,6 +37,9 @@ export default async function DashboardPage() {
       tpIcsUrl: users.tpIcsUrl,
       calIcsUrl: users.calIcsUrl,
       calIcsUrl2: users.calIcsUrl2,
+      msAccessToken: users.msAccessToken,
+      msRefreshToken: users.msRefreshToken,
+      msTokenExpiresAt: users.msTokenExpiresAt,
     }).from(users).where(eq(users.id, userId)),
     db.select().from(todos).where(eq(todos.userId, userId)),
     db.select().from(habits).where(eq(habits.userId, userId)),
@@ -51,11 +56,19 @@ export default async function DashboardPage() {
   const tpIcsUrl = userRecord?.tpIcsUrl ?? null;
   const calIcsUrl = userRecord?.calIcsUrl ?? null;
   const calIcsUrl2 = userRecord?.calIcsUrl2 ?? null;
+  const msConnected = !!userRecord?.msRefreshToken;
 
-  const [trainingResult, cal1Result, cal2Result] = await Promise.all([
+  const [trainingResult, cal1Result, cal2Result, mailResult] = await Promise.all([
     tpIcsUrl ? fetchTrainingData(tpIcsUrl) : null,
     calIcsUrl ? fetchCalendarEvents(calIcsUrl) : null,
     calIcsUrl2 ? fetchCalendarEvents(calIcsUrl2) : null,
+    msConnected
+      ? fetchMsMessages(userId, {
+          msAccessToken: userRecord!.msAccessToken,
+          msRefreshToken: userRecord!.msRefreshToken,
+          msTokenExpiresAt: userRecord!.msTokenExpiresAt,
+        })
+      : null,
   ]);
 
   const trainingFetchError = trainingResult && !trainingResult.ok ? trainingResult.error : null;
@@ -65,6 +78,11 @@ export default async function DashboardPage() {
   const cal2Events = cal2Result?.ok ? cal2Result.events : [];
   const cal2AllDay = cal2Result?.ok ? cal2Result.allDay : [];
   const cal2Error = cal2Result && !cal2Result.ok ? cal2Result.error : null;
+
+  const mailMessages = mailResult?.ok ? mailResult.messages : [];
+  const mailUnread = mailResult?.ok ? mailResult.unread : 0;
+  const mailTotal = mailResult?.ok ? mailResult.total : 0;
+  const mailError = mailResult && !mailResult.ok ? mailResult.error : null;
 
   // Build finance summary from this month's transactions
   let income = 0;
@@ -138,6 +156,16 @@ export default async function DashboardPage() {
                 allDay={[...cal1AllDay, ...cal2AllDay]}
                 cal1Error={cal1Error}
                 cal2Error={cal2Error}
+              />
+            </Widget>
+
+            <Widget title="Email" badge={msConnected ? (mailUnread > 0 ? `${mailUnread} unread` : undefined) : 'not connected'}>
+              <EmailWidget
+                connected={msConnected}
+                messages={mailMessages}
+                unread={mailUnread}
+                total={mailTotal}
+                error={mailError}
               />
             </Widget>
           </div>

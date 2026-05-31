@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       grant_type: 'authorization_code',
       code,
       redirect_uri: `${process.env.AUTH_URL}/api/ms-calendar/callback`,
-      scope: 'Calendars.Read offline_access',
+      scope: 'Mail.Read offline_access',
     }),
   });
 

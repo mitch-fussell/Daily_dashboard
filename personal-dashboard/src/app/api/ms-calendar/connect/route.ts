@@ -14,7 +14,7 @@ export async function GET(_req: NextRequest) {
     client_id: process.env.AUTH_MICROSOFT_ENTRA_ID_ID!,
     response_type: 'code',
     redirect_uri: `${process.env.AUTH_URL}/api/ms-calendar/callback`,
-    scope: 'Calendars.Read offline_access',
+    scope: 'Mail.Read offline_access',
     state,
     response_mode: 'query',
   });

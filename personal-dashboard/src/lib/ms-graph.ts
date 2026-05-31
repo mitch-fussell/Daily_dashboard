@@ -37,7 +37,7 @@ async function getAccessToken(userId: string, tokens: UserTokens): Promise<strin
       client_secret: process.env.AUTH_MICROSOFT_ENTRA_ID_SECRET!,
       grant_type: 'refresh_token',
       refresh_token: tokens.msRefreshToken,
-      scope: 'Calendars.Read offline_access',
+      scope: 'Mail.Read offline_access',
     }),
   });
 
@@ -127,4 +127,92 @@ export async function fetchMsCalendarEvents(userId: string, tokens: UserTokens):
   }
 
   return { ok: true, events, allDay };
+}
+
+type GraphMessage = {
+  id: string;
+  subject: string | null;
+  from?: { emailAddress?: { name?: string; address?: string } };
+  receivedDateTime: string;
+  bodyPreview: string | null;
+  isRead: boolean;
+  webLink: string;
+};
+
+export type EmailItem = {
+  id: string;
+  subject: string;
+  from: string;
+  fromAddress: string;
+  receivedMs: number;
+  preview: string;
+  isRead: boolean;
+  webLink: string;
+};
+
+export type MsMailResult =
+  | { ok: true; messages: EmailItem[]; unread: number; total: number }
+  | { ok: false; error: string };
+
+export async function fetchMsMessages(userId: string, tokens: UserTokens): Promise<MsMailResult> {
+  const accessToken = await getAccessToken(userId, tokens);
+  if (!accessToken) return { ok: false, error: 'Not authorized — please reconnect Microsoft' };
+
+  const headers = {
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  };
+
+  const msgParams = new URLSearchParams({
+    $select: 'subject,from,receivedDateTime,bodyPreview,isRead,webLink',
+    $orderby: 'receivedDateTime desc',
+    $top: '12',
+  });
+
+  // Recent inbox messages + folder counts (unread/total), in parallel
+  const [listRes, folderRes] = await Promise.all([
+    fetch(`https://graph.microsoft.com/v1.0/me/mailFolders/inbox/messages?${msgParams}`, {
+      headers,
+      cache: 'no-store',
+    }),
+    fetch('https://graph.microsoft.com/v1.0/me/mailFolders/inbox?$select=unreadItemCount,totalItemCount', {
+      headers,
+      cache: 'no-store',
+    }),
+  ]);
+
+  if (listRes.status === 401) {
+    // Token rejected — clear it so the widget shows the reconnect prompt
+    await db.update(users)
+      .set({ msAccessToken: null, msRefreshToken: null, msTokenExpiresAt: null })
+      .where(eq(users.id, userId));
+    return { ok: false, error: 'Microsoft session expired — please reconnect' };
+  }
+
+  if (!listRes.ok) {
+    return { ok: false, error: `Microsoft Graph error ${listRes.status}` };
+  }
+
+  const data = await listRes.json() as { value: GraphMessage[] };
+  const folder = folderRes.ok
+    ? await folderRes.json() as { unreadItemCount?: number; totalItemCount?: number }
+    : null;
+
+  const messages: EmailItem[] = data.value.map((m) => ({
+    id: m.id,
+    subject: m.subject?.trim() || '(no subject)',
+    from: m.from?.emailAddress?.name?.trim() || m.from?.emailAddress?.address?.trim() || 'Unknown sender',
+    fromAddress: m.from?.emailAddress?.address?.trim() || '',
+    receivedMs: new Date(m.receivedDateTime).getTime(),
+    preview: m.bodyPreview?.trim() || '',
+    isRead: m.isRead,
+    webLink: m.webLink,
+  }));
+
+  return {
+    ok: true,
+    messages,
+    unread: folder?.unreadItemCount ?? messages.filter((m) => !m.isRead).length,
+    total: folder?.totalItemCount ?? messages.length,
+  };
 }
